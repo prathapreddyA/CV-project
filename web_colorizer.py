@@ -95,7 +95,7 @@ else:
     print("❌ Failed to load model. Application will not work properly.")
 
 def colorize_image(image_path, style="natural", intensity=1.0, brightness=0, contrast=0, saturation=0):
-    """Colorize an image - simplified robust version"""
+    """Colorize an image with AI model or fallback to simple colorization"""
     try:
         print(f"🎨 Starting colorization for: {image_path}")
         
@@ -111,53 +111,68 @@ def colorize_image(image_path, style="natural", intensity=1.0, brightness=0, con
         rgb_image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
         h, w = rgb_image.shape[:2]
         
-        # Check if model is loaded
-        if not model_loaded:
-            print("❌ Model not loaded, returning original image")
-            return rgb_image, None
+        # Try AI model if loaded
+        if model_loaded:
+            print("🤖 Using AI model for colorization...")
+            try:
+                # Prepare image for neural network
+                lab = cv2.cvtColor(rgb_image.astype(np.float32) / 255.0, cv2.COLOR_RGB2LAB)
+                lab_resized = cv2.resize(lab, (224, 224))
+                L = lab_resized[:, :, 0]
+                L -= 50
+                
+                print("🤖 Running AI model inference...")
+                net.setInput(cv2.dnn.blobFromImage(L))
+                ab_decoded = net.forward()[0, :, :, :].transpose((1, 2, 0))
+                
+                # Resize to original size
+                ab_decoded = cv2.resize(ab_decoded, (w, h))
+                print("✅ AI model inference completed")
+                
+                # Combine with original L channel
+                L_original = lab[:, :, 0]
+                lab_decoded = np.concatenate((L_original[:, :, np.newaxis], ab_decoded), axis=2)
+                
+                # Convert back to RGB
+                print("🎨 Converting to final RGB image...")
+                rgb_decoded = cv2.cvtColor(lab_decoded, cv2.COLOR_LAB2RGB)
+                
+                # Ensure values are in correct range
+                rgb_decoded = np.clip(rgb_decoded, 0, 1)
+                result_image = (rgb_decoded * 255).astype(np.uint8)
+                
+                print("✅ AI Colorization completed successfully!")
+                return result_image, None
+                
+            except Exception as e:
+                print(f"⚠️ AI model processing failed: {e}")
+                print("🔄 Falling back to simple colorization...")
+                # Fall through to simple colorization
+        else:
+            print("⚠️ Model not loaded, using simple colorization...")
         
-        # Prepare image for neural network
-        print("🤖 Preparing image for AI model...")
+        # Fallback: Simple colorization using color mapping
+        print("🎨 Applying simple colorization...")
         
-        # Convert to LAB and resize for network
-        lab = cv2.cvtColor(rgb_image.astype(np.float32) / 255.0, cv2.COLOR_RGB2LAB)
-        lab_resized = cv2.resize(lab, (224, 224))
-        L = lab_resized[:, :, 0]
-        L -= 50
+        # Convert to grayscale to detect if image is already grayscale
+        gray = cv2.cvtColor(rgb_image, cv2.COLOR_RGB2GRAY)
         
-        # Process through neural network
-        try:
-            print("🤖 Running AI model inference...")
-            net.setInput(cv2.dnn.blobFromImage(L))
-            ab_decoded = net.forward()[0, :, :, :].transpose((1, 2, 0))
+        # Check if image is grayscale (all channels similar)
+        is_grayscale = np.allclose(rgb_image[:,:,0], rgb_image[:,:,1]) and np.allclose(rgb_image[:,:,1], rgb_image[:,:,2])
+        
+        if is_grayscale:
+            print("📷 Image is grayscale, applying color mapping...")
+            # Apply a simple color mapping based on intensity
+            hsv = np.zeros((h, w, 3), dtype=np.uint8)
+            hsv[:,:,2] = gray  # Value channel = grayscale
+            hsv[:,:,1] = 255   # Saturation = full
+            hsv[:,:,0] = (gray * 0.5).astype(np.uint8)  # Hue varies with intensity
             
-            # Resize to original size
-            ab_decoded = cv2.resize(ab_decoded, (w, h))
-            print("✅ AI model inference completed")
-            
-        except Exception as e:
-            print(f"❌ AI model failed: {e}")
-            # Return original image as fallback
-            return rgb_image, None
-        
-        # Combine with original L channel
-        L_original = lab[:, :, 0]
-        lab_decoded = np.concatenate((L_original[:, :, np.newaxis], ab_decoded), axis=2)
-        
-        # Convert back to RGB
-        try:
-            print("🎨 Converting to final RGB image...")
-            rgb_decoded = cv2.cvtColor(lab_decoded, cv2.COLOR_LAB2RGB)
-            
-            # Ensure values are in correct range
-            rgb_decoded = np.clip(rgb_decoded, 0, 1)
-            result_image = (rgb_decoded * 255).astype(np.uint8)
-            
-            print("✅ Colorization completed successfully!")
+            result_image = cv2.cvtColor(hsv, cv2.COLOR_HSV2RGB)
+            print("✅ Simple colorization completed!")
             return result_image, None
-            
-        except Exception as e:
-            print(f"❌ Color conversion failed: {e}")
+        else:
+            print("✅ Image already has color, returning as-is")
             return rgb_image, None
         
     except Exception as e:

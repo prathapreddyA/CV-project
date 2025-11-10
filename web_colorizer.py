@@ -37,14 +37,6 @@ ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'bmp', 'tiff', 'webp'}
 net = None
 model_loaded = False
 
-# Load model on application startup (works with Gunicorn too)
-print("🔧 Initializing AI Image Colorizer...")
-print("Loading Caffe model on startup...")
-if load_model():
-    print("✅ Model loaded successfully! Application ready.")
-else:
-    print("❌ Failed to load model. Application will not work properly.")
-
 def allowed_file(filename):
     """Check if file has allowed extension"""
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
@@ -70,6 +62,14 @@ def load_model():
     except Exception as e:
         print(f"❌ Model loading failed: {e}")
         return False
+
+# Load model on application startup (works with Gunicorn too)
+print("🔧 Initializing AI Image Colorizer...")
+print("Loading Caffe model on startup...")
+if load_model():
+    print("✅ Model loaded successfully! Application ready.")
+else:
+    print("❌ Failed to load model. Application will not work properly.")
 
 def colorize_image(image_path, style="natural", intensity=1.0, brightness=0, contrast=0, saturation=0):
     """Colorize an image"""

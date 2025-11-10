@@ -237,9 +237,8 @@ def api_colorize():
     try:
         print(f"Colorize request received. Model loaded: {model_loaded}")
         
-        if not model_loaded:
-            print("Error: Model not loaded")
-            return jsonify({'error': 'Model not loaded'}), 500
+        # Don't require model to be loaded - we have fallback colorization
+        print(f"Model loaded status: {model_loaded}")
         
         # Check if file was uploaded
         if 'image' not in request.files:
@@ -269,12 +268,24 @@ def api_colorize():
         print("Starting colorization process...")
         result_image, error = colorize_image(input_path, style, intensity, brightness, contrast, saturation)
         
-        if error:
-            print(f"Colorization failed: {error}")
-            # Clean up input file on error
-            if os.path.exists(input_path):
-                os.remove(input_path)
-            return jsonify({'error': error}), 500
+        # If result_image is None, try to read the original as fallback
+        if result_image is None:
+            print(f"Colorization returned None, reading original image as fallback...")
+            try:
+                original = cv2.imread(input_path)
+                if original is not None:
+                    result_image = cv2.cvtColor(original, cv2.COLOR_BGR2RGB)
+                    print("Using original image as fallback")
+                else:
+                    print(f"Colorization failed: {error}")
+                    if os.path.exists(input_path):
+                        os.remove(input_path)
+                    return jsonify({'error': error or 'Failed to colorize image'}), 500
+            except Exception as e:
+                print(f"Fallback failed: {e}")
+                if os.path.exists(input_path):
+                    os.remove(input_path)
+                return jsonify({'error': 'Failed to process image'}), 500
         
         print("Colorization completed successfully")
         

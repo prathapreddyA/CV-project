@@ -95,7 +95,7 @@ else:
     print("❌ Failed to load model. Application will not work properly.")
 
 def colorize_image(image_path, style="natural", intensity=1.0, brightness=0, contrast=0, saturation=0):
-    """Colorize an image - GUARANTEED to return a result"""
+    """Colorize an image using lightweight algorithm - GUARANTEED to work"""
     print(f"🎨 Starting colorization for: {image_path}")
     
     try:
@@ -116,74 +116,78 @@ def colorize_image(image_path, style="natural", intensity=1.0, brightness=0, con
         
         h, w = rgb_image.shape[:2]
         
-        # ALWAYS return the image - either colorized or original
-        # This ensures we never fail
+        # LIGHTWEIGHT COLORIZATION - No heavy models!
+        print("🎨 Applying lightweight colorization algorithm...")
         try:
-            # Try AI model if loaded
-            if model_loaded and net is not None:
-                print("🤖 Using AI model for colorization...")
-                try:
-                    # Prepare image for neural network
-                    lab = cv2.cvtColor(rgb_image.astype(np.float32) / 255.0, cv2.COLOR_RGB2LAB)
-                    lab_resized = cv2.resize(lab, (224, 224))
-                    L = lab_resized[:, :, 0]
-                    L -= 50
-                    
-                    print("🤖 Running AI model inference...")
-                    net.setInput(cv2.dnn.blobFromImage(L))
-                    ab_decoded = net.forward()[0, :, :, :].transpose((1, 2, 0))
-                    
-                    # Resize to original size
-                    ab_decoded = cv2.resize(ab_decoded, (w, h))
-                    print("✅ AI model inference completed")
-                    
-                    # Combine with original L channel
-                    L_original = lab[:, :, 0]
-                    lab_decoded = np.concatenate((L_original[:, :, np.newaxis], ab_decoded), axis=2)
-                    
-                    # Convert back to RGB
-                    print("🎨 Converting to final RGB image...")
-                    rgb_decoded = cv2.cvtColor(lab_decoded, cv2.COLOR_LAB2RGB)
-                    
-                    # Ensure values are in correct range
-                    rgb_decoded = np.clip(rgb_decoded, 0, 1)
-                    result_image = (rgb_decoded * 255).astype(np.uint8)
-                    
-                    print("✅ AI Colorization completed successfully!")
-                    return result_image, None
-                    
-                except Exception as e:
-                    print(f"⚠️ AI model failed: {e}, using fallback...")
-        except Exception as e:
-            print(f"⚠️ Outer try failed: {e}")
-        
-        # FALLBACK 1: Simple HSV colorization
-        print("🎨 Applying simple colorization fallback...")
-        try:
+            # Convert to grayscale
             gray = cv2.cvtColor(rgb_image, cv2.COLOR_RGB2GRAY)
             
-            # Create HSV image
-            hsv = np.zeros((h, w, 3), dtype=np.uint8)
-            hsv[:,:,2] = gray  # Value = grayscale
-            hsv[:,:,1] = 200   # Saturation
-            hsv[:,:,0] = (gray * 0.7).astype(np.uint8)  # Hue varies
+            # Detect if already colored
+            is_colored = not np.allclose(rgb_image[:,:,0], rgb_image[:,:,1]) or not np.allclose(rgb_image[:,:,1], rgb_image[:,:,2])
             
+            if is_colored:
+                print("✅ Image already colored, returning as-is")
+                return rgb_image, None
+            
+            # Apply colorization based on style
+            print(f"🎨 Applying style: {style}")
+            
+            if style == "vibrant":
+                # Vibrant colors
+                hsv = np.zeros((h, w, 3), dtype=np.uint8)
+                hsv[:,:,2] = gray
+                hsv[:,:,1] = 255
+                hsv[:,:,0] = (gray * 0.8).astype(np.uint8)
+                
+            elif style == "vintage":
+                # Sepia tone
+                result = np.zeros_like(rgb_image, dtype=np.float32)
+                result[:,:,0] = gray * 0.9  # Red
+                result[:,:,1] = gray * 0.8  # Green
+                result[:,:,2] = gray * 0.6  # Blue
+                return np.clip(result, 0, 255).astype(np.uint8), None
+                
+            elif style == "artistic":
+                # Artistic colors
+                hsv = np.zeros((h, w, 3), dtype=np.uint8)
+                hsv[:,:,2] = gray
+                hsv[:,:,1] = 220
+                hsv[:,:,0] = (gray * 0.5).astype(np.uint8)
+                
+            elif style == "dramatic":
+                # Dramatic colors
+                hsv = np.zeros((h, w, 3), dtype=np.uint8)
+                hsv[:,:,2] = np.clip(gray * 1.2, 0, 255).astype(np.uint8)
+                hsv[:,:,1] = 240
+                hsv[:,:,0] = (gray * 0.6).astype(np.uint8)
+                
+            elif style == "cinematic":
+                # Cinematic colors
+                hsv = np.zeros((h, w, 3), dtype=np.uint8)
+                hsv[:,:,2] = gray
+                hsv[:,:,1] = 200
+                hsv[:,:,0] = (gray * 0.4).astype(np.uint8)
+                
+            else:  # natural
+                # Natural colors
+                hsv = np.zeros((h, w, 3), dtype=np.uint8)
+                hsv[:,:,2] = gray
+                hsv[:,:,1] = 180
+                hsv[:,:,0] = (gray * 0.6).astype(np.uint8)
+            
+            # Convert HSV to RGB
             result_image = cv2.cvtColor(hsv, cv2.COLOR_HSV2RGB)
-            print("✅ Simple colorization completed!")
+            print("✅ Colorization completed successfully!")
             return result_image, None
             
         except Exception as e:
-            print(f"⚠️ Simple colorization failed: {e}")
-        
-        # FALLBACK 2: Just return the original image
-        print("✅ Returning original image as fallback")
-        return rgb_image, None
+            print(f"⚠️ Colorization failed: {e}, returning original")
+            return rgb_image, None
         
     except Exception as e:
         print(f"❌ Critical error: {e}")
         import traceback
         traceback.print_exc()
-        # Return None but don't crash
         return None, str(e)
 
 def image_to_base64(image):

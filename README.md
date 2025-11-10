@@ -6,23 +6,11 @@
 
 ---
 
-## 📥 **Important: Download Model File First**
+## ✅ **Model File Status**
 
-The AI model file (`colorization_release_v2.caffemodel` - 123 MB) is too large for GitHub.
+The AI model file (`colorization_release_v2.caffemodel` - 123 MB) is **already downloaded** and included in the project!
 
-### **Download the Model:**
-
-**Option 1: Direct Download**
-```
-https://www.dropbox.com/s/dx0qvhhp5hbcx7z/colorization_release_v2.caffemodel
-```
-
-**Option 2: Original Source**
-```
-https://github.com/richzhang/colorization/blob/caffe/colorization/models/colorization_release_v2.caffemodel
-```
-
-**Place the downloaded file in the project root directory.**
+✅ **Model Ready**: `colorization_release_v2.caffemodel` (122.97 MB)
 
 ---
 

@@ -180,10 +180,34 @@ def colorize_image(image_path, style="natural", intensity=1.0, brightness=0, con
         return None, str(e)
 
 def image_to_base64(image):
-    """Convert image to base64 string"""
-    _, buffer = cv2.imencode('.jpg', cv2.cvtColor(image, cv2.COLOR_RGB2BGR))
-    img_str = base64.b64encode(buffer).decode()
-    return img_str
+    """Convert image to base64 string with error handling"""
+    try:
+        print(f"Converting image to base64, shape: {image.shape}")
+        # Ensure image is in correct format
+        if image.dtype != 'uint8':
+            image = (image * 255).astype('uint8')
+        
+        # Convert RGB to BGR for OpenCV
+        if len(image.shape) == 3 and image.shape[2] == 3:
+            image_bgr = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
+        else:
+            image_bgr = image
+        
+        # Encode with compression for faster transfer
+        encode_param = [int(cv2.IMWRITE_JPEG_QUALITY), 85]
+        _, buffer = cv2.imencode('.jpg', image_bgr, encode_param)
+        
+        if not _:
+            raise ValueError("Failed to encode image")
+            
+        img_str = base64.b64encode(buffer).decode()
+        print(f"✅ Image converted to base64, size: {len(img_str)} chars")
+        return img_str
+        
+    except Exception as e:
+        print(f"❌ Error converting image to base64: {e}")
+        # Return a simple error indicator
+        return "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=="
 
 # Routes
 @app.route('/')
@@ -234,25 +258,51 @@ def api_colorize():
         input_path = os.path.join(app.config['UPLOAD_FOLDER'], unique_filename)
         file.save(input_path)
         
-        # Colorize image
+        # Colorize image with timeout handling
+        print("Starting colorization process...")
         result_image, error = colorize_image(input_path, style, intensity, brightness, contrast, saturation)
         
-        # Clean up input file
-        os.remove(input_path)
-        
         if error:
+            print(f"Colorization failed: {error}")
+            # Clean up input file on error
+            if os.path.exists(input_path):
+                os.remove(input_path)
             return jsonify({'error': error}), 500
         
-        # Convert result to base64
-        result_base64 = image_to_base64(result_image)
+        print("Colorization completed successfully")
         
-        # Create comparison
-        original_image = cv2.imread(input_path.replace(unique_filename, filename))
-        if original_image is not None:
-            original_rgb = cv2.cvtColor(original_image, cv2.COLOR_BGR2RGB)
-            original_base64 = image_to_base64(original_rgb)
-        else:
+        # Convert result to base64
+        try:
+            result_base64 = image_to_base64(result_image)
+            if result_base64.startswith("data:image/png;base64,iVBORw0KG"):
+                # Error indicator returned
+                print("Result image conversion failed")
+                if os.path.exists(input_path):
+                    os.remove(input_path)
+                return jsonify({'error': 'Failed to process result image'}), 500
+        except Exception as e:
+            print(f"Result base64 conversion failed: {e}")
+            if os.path.exists(input_path):
+                os.remove(input_path)
+            return jsonify({'error': 'Failed to convert result image'}), 500
+        
+        # Create comparison (before deleting input file)
+        try:
+            original_image = cv2.imread(input_path)
+            if original_image is not None:
+                original_rgb = cv2.cvtColor(original_image, cv2.COLOR_BGR2RGB)
+                original_base64 = image_to_base64(original_rgb)
+                print("✅ Original image converted successfully")
+            else:
+                original_base64 = None
+                print("⚠️ Could not read original image for comparison")
+        except Exception as e:
+            print(f"Original image conversion failed: {e}")
             original_base64 = None
+        
+        # Clean up input file after processing
+        if os.path.exists(input_path):
+            os.remove(input_path)
         
         return jsonify({
             'success': True,

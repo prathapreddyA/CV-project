@@ -129,51 +129,56 @@ def colorize_image(image_path, style="natural", intensity=1.0, brightness=0, con
                 print("✅ Image already colored, returning as-is")
                 return rgb_image, None
             
-            # Apply colorization based on style
+            # Apply colorization based on style with improved color mapping
             print(f"🎨 Applying style: {style}")
             
+            # Create a more sophisticated color mapping
+            # Map grayscale values to different hues for more realistic colors
+            hue_map = np.zeros_like(gray, dtype=np.uint8)
+            
             if style == "vibrant":
-                # Vibrant colors
-                hsv = np.zeros((h, w, 3), dtype=np.uint8)
-                hsv[:,:,2] = gray
-                hsv[:,:,1] = 255
-                hsv[:,:,0] = (gray * 0.8).astype(np.uint8)
+                # Vibrant: Rainbow-like colors across the spectrum
+                hue_map = (gray * 0.7).astype(np.uint8)  # Hue varies with brightness
+                saturation = 255  # Full saturation
+                value = gray
                 
             elif style == "vintage":
-                # Sepia tone
+                # Vintage: Warm sepia tones
                 result = np.zeros_like(rgb_image, dtype=np.float32)
-                result[:,:,0] = gray * 0.9  # Red
-                result[:,:,1] = gray * 0.8  # Green
-                result[:,:,2] = gray * 0.6  # Blue
+                result[:,:,0] = np.clip(gray * 1.1, 0, 255)  # Red boost
+                result[:,:,1] = np.clip(gray * 0.95, 0, 255)  # Green slight boost
+                result[:,:,2] = np.clip(gray * 0.7, 0, 255)  # Blue reduced
                 return np.clip(result, 0, 255).astype(np.uint8), None
                 
             elif style == "artistic":
-                # Artistic colors
-                hsv = np.zeros((h, w, 3), dtype=np.uint8)
-                hsv[:,:,2] = gray
-                hsv[:,:,1] = 220
-                hsv[:,:,0] = (gray * 0.5).astype(np.uint8)
+                # Artistic: Varied hues with good saturation
+                hue_map = (gray * 0.5).astype(np.uint8)  # Hue varies
+                saturation = 200
+                value = gray
                 
             elif style == "dramatic":
-                # Dramatic colors
-                hsv = np.zeros((h, w, 3), dtype=np.uint8)
-                hsv[:,:,2] = np.clip(gray * 1.2, 0, 255).astype(np.uint8)
-                hsv[:,:,1] = 240
-                hsv[:,:,0] = (gray * 0.6).astype(np.uint8)
+                # Dramatic: High contrast with bold colors
+                hue_map = (gray * 0.6).astype(np.uint8)
+                saturation = 240
+                value = np.clip(gray * 1.15, 0, 255).astype(np.uint8)  # Boost brightness
                 
             elif style == "cinematic":
-                # Cinematic colors
-                hsv = np.zeros((h, w, 3), dtype=np.uint8)
-                hsv[:,:,2] = gray
-                hsv[:,:,1] = 200
-                hsv[:,:,0] = (gray * 0.4).astype(np.uint8)
+                # Cinematic: Cool tones with blue/cyan emphasis
+                hue_map = (gray * 0.3 + 100).astype(np.uint8)  # Shift towards blue
+                saturation = 180
+                value = gray
                 
             else:  # natural
-                # Natural colors
-                hsv = np.zeros((h, w, 3), dtype=np.uint8)
-                hsv[:,:,2] = gray
-                hsv[:,:,1] = 180
-                hsv[:,:,0] = (gray * 0.6).astype(np.uint8)
+                # Natural: Balanced, realistic colors
+                hue_map = (gray * 0.55).astype(np.uint8)
+                saturation = 150
+                value = gray
+            
+            # Create HSV image
+            hsv = np.zeros((h, w, 3), dtype=np.uint8)
+            hsv[:,:,0] = hue_map  # Hue
+            hsv[:,:,1] = saturation  # Saturation
+            hsv[:,:,2] = value  # Value
             
             # Convert HSV to RGB
             result_image = cv2.cvtColor(hsv, cv2.COLOR_HSV2RGB)

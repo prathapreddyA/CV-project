@@ -42,13 +42,32 @@ def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 def load_model():
-    """Load Caffe model"""
+    """Load Caffe model with robust error handling"""
     global net, model_loaded
     try:
-        print("Loading Caffe model...")
-        net = cv2.dnn.readNetFromCaffe('colorization_deploy_v2.prototxt', 'colorization_release_v2.caffemodel')
-        pts = np.load('pts_in_hull.npy')
+        print("🔧 Loading Caffe model...")
         
+        # Check if model files exist
+        import os
+        if not os.path.exists('colorization_deploy_v2.prototxt'):
+            print("❌ Model prototxt file not found")
+            return False
+        if not os.path.exists('colorization_release_v2.caffemodel'):
+            print("❌ Model caffemodel file not found")
+            return False
+        if not os.path.exists('pts_in_hull.npy'):
+            print("❌ Points file not found")
+            return False
+        
+        print("✅ Model files found, loading network...")
+        net = cv2.dnn.readNetFromCaffe('colorization_deploy_v2.prototxt', 'colorization_release_v2.caffemodel')
+        print("✅ Network loaded successfully")
+        
+        print("🔧 Loading cluster centers...")
+        pts = np.load('pts_in_hull.npy')
+        print(f"✅ Points loaded, shape: {pts.shape}")
+        
+        print("🔧 Setting up network layers...")
         layer1 = net.getLayerId('class8_ab')
         layer2 = net.getLayerId('conv8_313_rh')
         
@@ -57,10 +76,14 @@ def load_model():
         net.getLayer(layer2).blobs = [np.full([1, 313], 2.606, dtype='float32')]
         
         model_loaded = True
-        print("✅ Model loaded successfully!")
+        print("✅ Model loaded successfully and ready!")
         return True
+        
     except Exception as e:
         print(f"❌ Model loading failed: {e}")
+        import traceback
+        traceback.print_exc()
+        model_loaded = False
         return False
 
 # Load model on application startup (works with Gunicorn too)
@@ -72,10 +95,9 @@ else:
     print("❌ Failed to load model. Application will not work properly.")
 
 def colorize_image(image_path, style="natural", intensity=1.0, brightness=0, contrast=0, saturation=0):
-    """Colorize an image"""
+    """Colorize an image - simplified robust version"""
     try:
         print(f"🎨 Starting colorization for: {image_path}")
-        print(f"🎨 Style: {style}, Intensity: {intensity}")
         
         # Read image
         image = cv2.imread(image_path)
@@ -85,120 +107,63 @@ def colorize_image(image_path, style="natural", intensity=1.0, brightness=0, con
         
         print(f"✅ Image loaded successfully, shape: {image.shape}")
         
-        # Convert to RGB and then to LAB for proper processing
+        # Convert to RGB
         rgb_image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+        h, w = rgb_image.shape[:2]
         
-        # Normalize and convert to LAB (keep original luminance)
-        normalized = rgb_image.astype("float32") / 255.0
-        lab_image = cv2.cvtColor(normalized, cv2.COLOR_RGB2LAB)
-        resized = cv2.resize(lab_image, (224, 224))
-        
-        # Extract L channel and process
-        L = cv2.split(resized)[0]
-        L -= 50
-        
-        # Forward pass through network
-        print(f"🤖 Processing image with AI model...")
-        print(f"🤖 L channel shape: {L.shape}")
-        print(f"🤖 Lab image shape: {lab_image.shape}")
-        
-        try:
-            net.setInput(cv2.dnn.blobFromImage(L))
-            print("🤖 Input set to neural network")
-            ab = net.forward()[0, :, :, :].transpose((1, 2, 0))
-            print(f"🤖 AI model forward pass completed")
-            print(f"🤖 AB channels shape: {ab.shape}")
-            
-            # Resize AB channels to match original image size
-            ab = cv2.resize(ab, (lab_image.shape[1], lab_image.shape[0]))
-            print(f"🤖 Resized AB shape: {ab.shape}")
-            
-        except Exception as e:
-            print(f"❌ AI model processing failed: {e}")
-            return None, f"AI model processing failed: {e}"
-        
-        # Combine channels and convert back
-        L = cv2.split(lab_image)[0]
-        print(f"🎨 Original L shape: {L.shape}")
-        print(f"🎨 AB shape for concatenation: {ab.shape}")
-        
-        # Ensure AB values are in proper range
-        ab = np.clip(ab, -128, 127)
-        print(f"🎨 AB values clipped to range: [{ab.min()}, {ab.max()}]")
-        
-        Lab_colored = np.concatenate((L[:, :, np.newaxis], ab), axis=2)
-        print(f"🎨 Final LAB shape: {Lab_colored.shape}")
-        
-        # Convert back to RGB with error handling
-        try:
-            print("🎨 Converting LAB to RGB...")
-            RGB_colored = cv2.cvtColor(Lab_colored, cv2.COLOR_LAB2RGB)
-            print("✅ LAB to RGB conversion successful")
-            print(f"✅ Final RGB shape: {RGB_colored.shape}")
-            print(f"✅ RGB value range: [{RGB_colored.min():.3f}, {RGB_colored.max():.3f}]")
-        except cv2.error as e:
-            print(f"❌ LAB to RGB conversion failed: {e}")
-            # Fallback: return original image
-            print("🔄 Falling back to original image")
+        # Check if model is loaded
+        if not model_loaded:
+            print("❌ Model not loaded, returning original image")
             return rgb_image, None
         
-        # Apply style with error handling
-        try:
-            if style == "vibrant":
-                hsv = cv2.cvtColor(RGB_colored, cv2.COLOR_RGB2HSV)
-                hsv[:, :, 1] = np.clip(hsv[:, :, 1] * 1.5 * intensity, 0, 1)
-                RGB_colored = cv2.cvtColor(hsv, cv2.COLOR_HSV2RGB)
-            elif style == "vintage":
-                sepia_filter = np.array([[0.393, 0.769, 0.189],
-                                        [0.349, 0.686, 0.168],
-                                        [0.272, 0.534, 0.131]])
-                RGB_colored = np.dot(RGB_colored, sepia_filter.T)
-                RGB_colored = np.clip(RGB_colored, 0, 1)
-            elif style == "artistic":
-                RGB_colored[:, :, 0] = np.clip(RGB_colored[:, :, 0] * 1.2 * intensity, 0, 1)
-                RGB_colored[:, :, 2] = np.clip(RGB_colored[:, :, 2] * 0.8, 0, 1)
-            elif style == "dramatic":
-                RGB_colored = (RGB_colored - 0.5) * 1.3 * intensity + 0.5
-                hsv = cv2.cvtColor(RGB_colored, cv2.COLOR_RGB2HSV)
-                hsv[:, :, 1] = np.clip(hsv[:, :, 1] * 1.3, 0, 1)
-                RGB_colored = cv2.cvtColor(hsv, cv2.COLOR_HSV2RGB)
-            elif style == "cinematic":
-                RGB_colored = (RGB_colored - 0.5) * 1.2 * intensity + 0.5
-                RGB_colored[RGB_colored < 0.3] *= np.array([0.9, 0.95, 1.1])
-                RGB_colored[RGB_colored > 0.7] *= np.array([1.1, 1.05, 0.95])
-            
-            print(f"✅ Style '{style}' applied successfully")
-        except Exception as e:
-            print(f"❌ Style application failed: {e}")
-            # Continue with basic colorization without style
+        # Prepare image for neural network
+        print("🤖 Preparing image for AI model...")
         
-        # Apply enhancements with error handling
+        # Convert to LAB and resize for network
+        lab = cv2.cvtColor(rgb_image.astype(np.float32) / 255.0, cv2.COLOR_RGB2LAB)
+        lab_resized = cv2.resize(lab, (224, 224))
+        L = lab_resized[:, :, 0]
+        L -= 50
+        
+        # Process through neural network
         try:
-            img_float = RGB_colored.astype(np.float32)
-            img_float += brightness / 100.0
-            contrast_factor = (contrast + 100) / 100.0
-            img_float = (img_float - 0.5) * contrast_factor + 0.5
+            print("🤖 Running AI model inference...")
+            net.setInput(cv2.dnn.blobFromImage(L))
+            ab_decoded = net.forward()[0, :, :, :].transpose((1, 2, 0))
             
-            saturation_factor = (saturation + 100) / 100.0
-            hsv = cv2.cvtColor(img_float, cv2.COLOR_RGB2HSV)
-            hsv[:, :, 1] = np.clip(hsv[:, :, 1] * saturation_factor, 0, 1)
-            RGB_colored = cv2.cvtColor(hsv, cv2.COLOR_HSV2RGB)
+            # Resize to original size
+            ab_decoded = cv2.resize(ab_decoded, (w, h))
+            print("✅ AI model inference completed")
             
-            # Clip and convert to uint8
-            RGB_colored = np.clip(RGB_colored, 0, 1)
-            result_image = (255 * RGB_colored).astype('uint8')
+        except Exception as e:
+            print(f"❌ AI model failed: {e}")
+            # Return original image as fallback
+            return rgb_image, None
+        
+        # Combine with original L channel
+        L_original = lab[:, :, 0]
+        lab_decoded = np.concatenate((L_original[:, :, np.newaxis], ab_decoded), axis=2)
+        
+        # Convert back to RGB
+        try:
+            print("🎨 Converting to final RGB image...")
+            rgb_decoded = cv2.cvtColor(lab_decoded, cv2.COLOR_LAB2RGB)
             
-            print("✅ Final image processing completed successfully")
+            # Ensure values are in correct range
+            rgb_decoded = np.clip(rgb_decoded, 0, 1)
+            result_image = (rgb_decoded * 255).astype(np.uint8)
+            
+            print("✅ Colorization completed successfully!")
             return result_image, None
             
         except Exception as e:
-            print(f"❌ Final image processing failed: {e}")
-            # Return basic colorized image without enhancements
-            RGB_colored = np.clip(RGB_colored, 0, 1)
-            result_image = (255 * RGB_colored).astype('uint8')
-            return result_image, None
+            print(f"❌ Color conversion failed: {e}")
+            return rgb_image, None
         
     except Exception as e:
+        print(f"❌ Colorization failed: {e}")
+        import traceback
+        traceback.print_exc()
         return None, str(e)
 
 def image_to_base64(image):

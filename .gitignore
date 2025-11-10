@@ -1,0 +1,76 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual Environment
+venv/
+ENV/
+env/
+.venv
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Environment variables
+.env
+
+# Uploads and outputs
+uploads/
+outputs/
+temp_processing/
+colorized_output/
+colorized_batch_*/
+test_images/
+
+# Logs
+*.log
+logs/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.bak
+*.swp
+
+# Test files
+test_*.jpg
+test_*.png
+demo_*.jpg
+demo_*.png
+
+# Backup files
+*.backup
+*.old
+
+# Model files - Large file excluded from Git
+# Download separately: https://github.com/richzhang/colorization/blob/caffe/colorization/models/colorization_release_v2.caffemodel
+colorization_release_v2.caffemodel
+
+# Keep small model files
+!colorization_deploy_v2.prototxt
+!pts_in_hull.npy

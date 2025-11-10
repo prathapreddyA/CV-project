@@ -1,0 +1,20 @@
+# Render Deployment Configuration
+# render.yaml
+
+services:
+  - type: web
+    name: ai-image-colorizer
+    env: python
+    region: oregon
+    plan: free
+    buildCommand: pip install -r requirements_render.txt
+    startCommand: gunicorn web_colorizer:app --bind 0.0.0.0:$PORT --workers 2 --timeout 120
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.0
+      - key: FLASK_ENV
+        value: production
+      - key: MAX_CONTENT_LENGTH
+        value: 16777216
+    healthCheckPath: /health
+    autoDeploy: true

@@ -74,10 +74,16 @@ else:
 def colorize_image(image_path, style="natural", intensity=1.0, brightness=0, contrast=0, saturation=0):
     """Colorize an image"""
     try:
+        print(f"🎨 Starting colorization for: {image_path}")
+        print(f"🎨 Style: {style}, Intensity: {intensity}")
+        
         # Read image
         image = cv2.imread(image_path)
         if image is None:
+            print("❌ Could not read image file")
             return None, "Could not read image"
+        
+        print(f"✅ Image loaded successfully, shape: {image.shape}")
         
         # Convert to RGB and then to LAB for proper processing
         rgb_image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
@@ -92,32 +98,48 @@ def colorize_image(image_path, style="natural", intensity=1.0, brightness=0, con
         L -= 50
         
         # Forward pass through network
-        print(f"Processing image shape: {test_image.shape}")
-        print(f"L channel shape: {L.shape}")
-        net.setInput(cv2.dnn.blobFromImage(L))
-        ab = net.forward()[0, :, :, :].transpose((1, 2, 0))
-        print(f"AB channels shape: {ab.shape}")
-        ab = cv2.resize(ab, (test_image.shape[1], test_image.shape[0]))
-        print(f"Resized AB shape: {ab.shape}")
+        print(f"🤖 Processing image with AI model...")
+        print(f"🤖 L channel shape: {L.shape}")
+        print(f"🤖 Lab image shape: {lab_image.shape}")
+        
+        try:
+            net.setInput(cv2.dnn.blobFromImage(L))
+            print("🤖 Input set to neural network")
+            ab = net.forward()[0, :, :, :].transpose((1, 2, 0))
+            print(f"🤖 AI model forward pass completed")
+            print(f"🤖 AB channels shape: {ab.shape}")
+            
+            # Resize AB channels to match original image size
+            ab = cv2.resize(ab, (lab_image.shape[1], lab_image.shape[0]))
+            print(f"🤖 Resized AB shape: {ab.shape}")
+            
+        except Exception as e:
+            print(f"❌ AI model processing failed: {e}")
+            return None, f"AI model processing failed: {e}"
         
         # Combine channels and convert back
         L = cv2.split(lab_image)[0]
-        print(f"Original L shape: {L.shape}")
-        print(f"AB shape for concatenation: {ab.shape}")
+        print(f"🎨 Original L shape: {L.shape}")
+        print(f"🎨 AB shape for concatenation: {ab.shape}")
         
         # Ensure AB values are in proper range
         ab = np.clip(ab, -128, 127)
+        print(f"🎨 AB values clipped to range: [{ab.min()}, {ab.max()}]")
         
         Lab_colored = np.concatenate((L[:, :, np.newaxis], ab), axis=2)
-        print(f"Final LAB shape: {Lab_colored.shape}")
+        print(f"🎨 Final LAB shape: {Lab_colored.shape}")
         
         # Convert back to RGB with error handling
         try:
+            print("🎨 Converting LAB to RGB...")
             RGB_colored = cv2.cvtColor(Lab_colored, cv2.COLOR_LAB2RGB)
             print("✅ LAB to RGB conversion successful")
+            print(f"✅ Final RGB shape: {RGB_colored.shape}")
+            print(f"✅ RGB value range: [{RGB_colored.min():.3f}, {RGB_colored.max():.3f}]")
         except cv2.error as e:
             print(f"❌ LAB to RGB conversion failed: {e}")
             # Fallback: return original image
+            print("🔄 Falling back to original image")
             return rgb_image, None
         
         # Apply style with error handling

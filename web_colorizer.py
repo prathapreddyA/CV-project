@@ -166,7 +166,10 @@ def api_status():
 def api_colorize():
     """Colorize image API endpoint"""
     try:
+        print(f"Colorize request received. Model loaded: {model_loaded}")
+        
         if not model_loaded:
+            print("Error: Model not loaded")
             return jsonify({'error': 'Model not loaded'}), 500
         
         # Check if file was uploaded
@@ -227,6 +230,9 @@ def api_colorize():
         })
         
     except Exception as e:
+        print(f"Error in colorize endpoint: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/batch_colorize', methods=['POST'])

@@ -10,8 +10,6 @@ services:
     buildCommand: pip install -r requirements.txt && curl -L -o colorization_release_v2.caffemodel "https://www.dropbox.com/s/dx0qvhhp5hbcx7z/colorization_release_v2.caffemodel?dl=1"
     startCommand: gunicorn web_colorizer:app --bind 0.0.0.0:$PORT --workers 2 --timeout 120
     envVars:
-      - key: PYTHON_VERSION
-        value: 3.11.9
       - key: FLASK_ENV
         value: production
       - key: MAX_CONTENT_LENGTH

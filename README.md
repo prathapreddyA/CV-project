@@ -2,6 +2,8 @@
 
 **Professional AI-Powered Image Colorization** - Transform black and white images into vibrant, colorful masterpieces using deep learning.
 
+**Author**: prathapreddyA
+
 ---
 
 ## 📥 **Important: Download Model File First**

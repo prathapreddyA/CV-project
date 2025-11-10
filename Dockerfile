@@ -26,7 +26,7 @@ RUN echo "Downloading AI model file..." && \
     curl -L -o colorization_release_v2.caffemodel "https://www.dropbox.com/s/dx0qvhhp5hbcx7z/colorization_release_v2.caffemodel?dl=1" && \
     echo "Verifying model file..." && \
     ls -lh colorization_release_v2.caffemodel && \
-    file colorization_release_v2.caffemodel
+    echo "✅ Model file downloaded successfully!"
 
 # Copy the rest of the application
 COPY . .

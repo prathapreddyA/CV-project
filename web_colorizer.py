@@ -102,49 +102,79 @@ def colorize_image(image_path, style="natural", intensity=1.0, brightness=0, con
         
         # Combine channels and convert back
         L = cv2.split(lab_image)[0]
+        print(f"Original L shape: {L.shape}")
+        print(f"AB shape for concatenation: {ab.shape}")
+        
+        # Ensure AB values are in proper range
+        ab = np.clip(ab, -128, 127)
+        
         Lab_colored = np.concatenate((L[:, :, np.newaxis], ab), axis=2)
-        RGB_colored = cv2.cvtColor(Lab_colored, cv2.COLOR_LAB2RGB)
+        print(f"Final LAB shape: {Lab_colored.shape}")
         
-        # Apply style
-        if style == "vibrant":
-            hsv = cv2.cvtColor(RGB_colored, cv2.COLOR_RGB2HSV)
-            hsv[:, :, 1] = np.clip(hsv[:, :, 1] * 1.5 * intensity, 0, 1)
+        # Convert back to RGB with error handling
+        try:
+            RGB_colored = cv2.cvtColor(Lab_colored, cv2.COLOR_LAB2RGB)
+            print("✅ LAB to RGB conversion successful")
+        except cv2.error as e:
+            print(f"❌ LAB to RGB conversion failed: {e}")
+            # Fallback: return original image
+            return rgb_image, None
+        
+        # Apply style with error handling
+        try:
+            if style == "vibrant":
+                hsv = cv2.cvtColor(RGB_colored, cv2.COLOR_RGB2HSV)
+                hsv[:, :, 1] = np.clip(hsv[:, :, 1] * 1.5 * intensity, 0, 1)
+                RGB_colored = cv2.cvtColor(hsv, cv2.COLOR_HSV2RGB)
+            elif style == "vintage":
+                sepia_filter = np.array([[0.393, 0.769, 0.189],
+                                        [0.349, 0.686, 0.168],
+                                        [0.272, 0.534, 0.131]])
+                RGB_colored = np.dot(RGB_colored, sepia_filter.T)
+                RGB_colored = np.clip(RGB_colored, 0, 1)
+            elif style == "artistic":
+                RGB_colored[:, :, 0] = np.clip(RGB_colored[:, :, 0] * 1.2 * intensity, 0, 1)
+                RGB_colored[:, :, 2] = np.clip(RGB_colored[:, :, 2] * 0.8, 0, 1)
+            elif style == "dramatic":
+                RGB_colored = (RGB_colored - 0.5) * 1.3 * intensity + 0.5
+                hsv = cv2.cvtColor(RGB_colored, cv2.COLOR_RGB2HSV)
+                hsv[:, :, 1] = np.clip(hsv[:, :, 1] * 1.3, 0, 1)
+                RGB_colored = cv2.cvtColor(hsv, cv2.COLOR_HSV2RGB)
+            elif style == "cinematic":
+                RGB_colored = (RGB_colored - 0.5) * 1.2 * intensity + 0.5
+                RGB_colored[RGB_colored < 0.3] *= np.array([0.9, 0.95, 1.1])
+                RGB_colored[RGB_colored > 0.7] *= np.array([1.1, 1.05, 0.95])
+            
+            print(f"✅ Style '{style}' applied successfully")
+        except Exception as e:
+            print(f"❌ Style application failed: {e}")
+            # Continue with basic colorization without style
+        
+        # Apply enhancements with error handling
+        try:
+            img_float = RGB_colored.astype(np.float32)
+            img_float += brightness / 100.0
+            contrast_factor = (contrast + 100) / 100.0
+            img_float = (img_float - 0.5) * contrast_factor + 0.5
+            
+            saturation_factor = (saturation + 100) / 100.0
+            hsv = cv2.cvtColor(img_float, cv2.COLOR_RGB2HSV)
+            hsv[:, :, 1] = np.clip(hsv[:, :, 1] * saturation_factor, 0, 1)
             RGB_colored = cv2.cvtColor(hsv, cv2.COLOR_HSV2RGB)
-        elif style == "vintage":
-            sepia_filter = np.array([[0.393, 0.769, 0.189],
-                                    [0.349, 0.686, 0.168],
-                                    [0.272, 0.534, 0.131]])
-            RGB_colored = np.dot(RGB_colored, sepia_filter.T)
+            
+            # Clip and convert to uint8
             RGB_colored = np.clip(RGB_colored, 0, 1)
-        elif style == "artistic":
-            RGB_colored[:, :, 0] = np.clip(RGB_colored[:, :, 0] * 1.2 * intensity, 0, 1)
-            RGB_colored[:, :, 2] = np.clip(RGB_colored[:, :, 2] * 0.8, 0, 1)
-        elif style == "dramatic":
-            RGB_colored = (RGB_colored - 0.5) * 1.3 * intensity + 0.5
-            hsv = cv2.cvtColor(RGB_colored, cv2.COLOR_RGB2HSV)
-            hsv[:, :, 1] = np.clip(hsv[:, :, 1] * 1.3, 0, 1)
-            RGB_colored = cv2.cvtColor(hsv, cv2.COLOR_HSV2RGB)
-        elif style == "cinematic":
-            RGB_colored = (RGB_colored - 0.5) * 1.2 * intensity + 0.5
-            RGB_colored[RGB_colored < 0.3] *= np.array([0.9, 0.95, 1.1])
-            RGB_colored[RGB_colored > 0.7] *= np.array([1.1, 1.05, 0.95])
-        
-        # Apply enhancements
-        img_float = RGB_colored.astype(np.float32)
-        img_float += brightness / 100.0
-        contrast_factor = (contrast + 100) / 100.0
-        img_float = (img_float - 0.5) * contrast_factor + 0.5
-        
-        saturation_factor = (saturation + 100) / 100.0
-        hsv = cv2.cvtColor(img_float, cv2.COLOR_RGB2HSV)
-        hsv[:, :, 1] = np.clip(hsv[:, :, 1] * saturation_factor, 0, 1)
-        RGB_colored = cv2.cvtColor(hsv, cv2.COLOR_HSV2RGB)
-        
-        # Clip and convert to uint8
-        RGB_colored = np.clip(RGB_colored, 0, 1)
-        result_image = (255 * RGB_colored).astype('uint8')
-        
-        return result_image, None
+            result_image = (255 * RGB_colored).astype('uint8')
+            
+            print("✅ Final image processing completed successfully")
+            return result_image, None
+            
+        except Exception as e:
+            print(f"❌ Final image processing failed: {e}")
+            # Return basic colorized image without enhancements
+            RGB_colored = np.clip(RGB_colored, 0, 1)
+            result_image = (255 * RGB_colored).astype('uint8')
+            return result_image, None
         
     except Exception as e:
         return None, str(e)

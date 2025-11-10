@@ -79,15 +79,11 @@ def colorize_image(image_path, style="natural", intensity=1.0, brightness=0, con
         if image is None:
             return None, "Could not read image"
         
-        # Convert to RGB
+        # Convert to RGB and then to LAB for proper processing
         rgb_image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
         
-        # Convert to grayscale and back to RGB
-        gray = cv2.cvtColor(rgb_image, cv2.COLOR_RGB2GRAY)
-        test_image = cv2.cvtColor(gray, cv2.COLOR_GRAY2RGB)
-        
-        # Normalize and convert to LAB
-        normalized = test_image.astype("float32") / 255.0
+        # Normalize and convert to LAB (keep original luminance)
+        normalized = rgb_image.astype("float32") / 255.0
         lab_image = cv2.cvtColor(normalized, cv2.COLOR_RGB2LAB)
         resized = cv2.resize(lab_image, (224, 224))
         
@@ -96,9 +92,13 @@ def colorize_image(image_path, style="natural", intensity=1.0, brightness=0, con
         L -= 50
         
         # Forward pass through network
+        print(f"Processing image shape: {test_image.shape}")
+        print(f"L channel shape: {L.shape}")
         net.setInput(cv2.dnn.blobFromImage(L))
         ab = net.forward()[0, :, :, :].transpose((1, 2, 0))
+        print(f"AB channels shape: {ab.shape}")
         ab = cv2.resize(ab, (test_image.shape[1], test_image.shape[0]))
+        print(f"Resized AB shape: {ab.shape}")
         
         # Combine channels and convert back
         L = cv2.split(lab_image)[0]
